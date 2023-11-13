@@ -8,19 +8,48 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 # This class-based view performs Listing and Creation of Tasks
+
+
 class TaskListCreate(APIView):
     def get(self, request):
-        queryset = Task.objects.all()
-        serializer = TaskSerializer(queryset, many=True)
+        task = Task.objects.all()
+        serializer = TaskSerializer(task, many=True)
         return Response({'tasks': serializer.data})
 
     def post(self, request):
-        serializer = TaskSerializer(data=request.data)
-        if serializer.is_valid():
-            task = serializer.save()
-            return Response({'id': task.id}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if 'tasks' in request.data: # This condition bulk add tasks
+            tasks = request.data.get('tasks', [])
+            created_tasks = []
 
+            for task in tasks:
+                serializer = TaskSerializer(data=task)
+                if serializer.is_valid():
+                    task_save = serializer.save()
+                    created_tasks.append({'id': task_save.id})
+
+            return Response({'tasks': created_tasks}, status=status.HTTP_201_CREATED)
+
+        else: #This condition adds 1 task
+            serializer = TaskSerializer(data=request.data)
+            if serializer.is_valid():
+                task = serializer.save()
+                return Response({'id': task.id}, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        if 'tasks' in request.data: #This condition bulk deletes tasks
+            tasks_data = request.data.get('tasks', [])
+
+            for task_data in tasks_data:
+                task_id = task_data.get('id', None)
+                if task_id is not None:
+                    try:
+                        task = Task.objects.get(pk=task_id)
+                        task.delete()
+                    except Task.DoesNotExist:  # If handle doesnt exist, it does nothing
+                        pass  
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
 # This class-based view performs getting a particular task,editing and deleting the task
 class TaskDetail(APIView):
@@ -51,33 +80,34 @@ class TaskDetail(APIView):
         except Http404:
             return Response({'error': 'There is no task at that id'}, status=status.HTTP_404_NOT_FOUND)
 
-# This function-based view is used to bulk add tasks
-@api_view(['POST'])
-def bulk_add_tasks(request):
-    tasks = request.data.get('tasks', [])
-    created_tasks = []
-
-    for task in tasks:
-        serializer = TaskSerializer(data=task)
-        if serializer.is_valid():
-            task_save = serializer.save()
-            created_tasks.append({'id': task_save.id})
-
-    return Response({'tasks': created_tasks}, status=status.HTTP_201_CREATED)
 
 
-# This function-based view is used to bulk delete tasks
-@api_view(['DELETE'])
-def bulk_delete_tasks(request):
-    tasks = request.data.get('tasks', [])
+# @api_view(['POST'])
+# def bulk_add_tasks(request):
+#     tasks = request.data.get('tasks', [])
+#     created_tasks = []
 
-    for task in tasks:
-        task_id = task.get('id', None)
-        if task_id is not None:
-            try:
-                task_del = Task.objects.get(pk=task_id)
-                task_del.delete()
-            except Task.DoesNotExist:  # If handle doesnt exist, it does nothing
-                pass
+#     for task in tasks:
+#         serializer = TaskSerializer(data=task)
+#         if serializer.is_valid():
+#             task_save = serializer.save()
+#             created_tasks.append({'id': task_save.id})
 
-    return Response(status=status.HTTP_204_NO_CONTENT)
+#     return Response({'tasks': created_tasks}, status=status.HTTP_201_CREATED)
+
+
+# # This function-based view is used to bulk delete tasks
+# @api_view(['DELETE'])
+# def bulk_delete_tasks(request):
+#     tasks = request.data.get('tasks', [])
+
+#     for task in tasks:
+#         task_id = task.get('id', None)
+#         if task_id is not None:
+#             try:
+#                 task_del = Task.objects.get(pk=task_id)
+#                 task_del.delete()
+#             except Task.DoesNotExist: 
+#                 pass
+
+#     return Response(status=status.HTTP_204_NO_CONTENT)
